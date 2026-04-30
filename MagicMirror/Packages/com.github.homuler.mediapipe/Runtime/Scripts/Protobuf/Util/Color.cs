@@ -149,7 +149,11 @@ namespace Mediapipe {
     private readonly static int BDefaultValue = 0;
 
     private int b_;
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+        public static UnityEngine.Color green;
+        public static UnityEngine.Color cyan;
+        public static UnityEngine.Color yellow;
+
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public int B {
       get { if ((_hasBits0 & 4) != 0) { return b_; } else { return BDefaultValue; } }
