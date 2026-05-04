@@ -6,6 +6,8 @@ TagManager:
   tags:
   - Global Resource
   - character
+  - Default background
+  - background
   layers:
   - Default
   - TransparentFX

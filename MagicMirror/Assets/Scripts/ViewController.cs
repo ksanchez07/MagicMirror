@@ -6,15 +6,23 @@ using UnityEngine;
 public class ViewController : MonoBehaviour
 {
     private GameObject[] characters;
+    private GameObject[] backgrounds;
 
     void Start()
     {
         characters = GameObject.FindGameObjectsWithTag("character");
+        backgrounds = GameObject.FindGameObjectsWithTag("background");
         foreach (GameObject character in characters)
         {
             // Make all characters invisible at the start of the game
             character.SetActive(false);
         }
+        foreach (GameObject background in backgrounds)
+        {
+            // Make all backgrounds invisible at the start of the game
+            background.SetActive(false);
+        }
+
     }
 
     void Update()
@@ -34,9 +42,19 @@ public class ViewController : MonoBehaviour
 
     private void ToggleCharacter(int index)
     {
+        // Hide the pose detection stuff
+        foreach (GameObject component in GameObject.FindGameObjectsWithTag("Default background"))
+            component.SetActive(false);
+
+
+
         // Hide all characters, then show only the selected one
         foreach (GameObject character in characters)
             character.SetActive(false);
+
+        //Hide all backgrounds, then show only the selected one
+        foreach (GameObject background in backgrounds)
+            background.SetActive(false);
 
         if (index >= characters.Length)
         {
@@ -45,6 +63,7 @@ public class ViewController : MonoBehaviour
         }
 
         characters[index].SetActive(true);
+        backgrounds[index].SetActive(true);
         print($"Character {index} is now visible");
     }
 }

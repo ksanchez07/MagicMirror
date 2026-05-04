@@ -57,20 +57,25 @@ namespace Mediapipe.Unity.Sample.PoseLandmarkDetection
         private readonly bool[] _visible = new bool[33];
 
         private float _modelShoulderSpan = 1f;
+        private float _shoulderToRootOffset;
 
         void Awake()
         {
             _animator = GetComponent<Animator>();
             if (cam == null) cam = Camera.main;
 
-            var l = _animator.GetBoneTransform(HumanBodyBones.LeftUpperArm);
-            var r = _animator.GetBoneTransform(HumanBodyBones.RightUpperArm);
+            var leftShoulder = _animator.GetBoneTransform(HumanBodyBones.LeftUpperArm);
+            var rightShoulder = _animator.GetBoneTransform(HumanBodyBones.RightUpperArm);
+            var hips = _animator.GetBoneTransform(HumanBodyBones.Hips);
 
-            if (l != null && r != null)
-                _modelShoulderSpan = Vector3.Distance(l.position, r.position);
+            if (leftShoulder != null && rightShoulder != null)
+                _modelShoulderSpan = Vector3.Distance(leftShoulder.position, rightShoulder.position);
 
             if (_modelShoulderSpan < 0.001f)
                 _modelShoulderSpan = 0.5f;
+
+            if (leftShoulder != null && hips != null)
+                _shoulderToRootOffset = hips.position.y - leftShoulder.position.y;
         }
 
         void Start()
@@ -173,7 +178,7 @@ namespace Mediapipe.Unity.Sample.PoseLandmarkDetection
             var shoulderCenter = (lShoulder + rShoulder) * 0.5f;
 
             // Move character down from shoulders to where hips/root should be
-            transform.position = shoulderCenter + new Vector3(0f, -0.65f * transform.localScale.y, 0f);
+            transform.position = shoulderCenter + new Vector3(0f, _shoulderToRootOffset, 0f);
         }
 
         private void DriveHead(Quaternion baseRot, Vector3 forward)
