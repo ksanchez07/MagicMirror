@@ -307,14 +307,13 @@ MonoBehaviour:
   runner: {fileID: 0}
   cam: {fileID: 0}
   characterDepth: 2
-  smoothing: 0.85
+  smoothing: 0.65
   worldOffset: {x: 0, y: 0, z: 0}
-  scaleMultiplier: 1
+  scaleMultiplier: 2
   handIKWeight: 1
   footIKWeight: 1
   hintIKWeight: 0.6
   visibilityThreshold: 0.5
-  drawDebugGizmos: 1
 --- !u!1001 &1006057040
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -679,6 +678,21 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: -8679921383154817045, guid: 1d2d91e6cec5ee045bca190f9aecb5ba,
         type: 3}
+      propertyPath: m_LocalScale.x
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 1d2d91e6cec5ee045bca190f9aecb5ba,
+        type: 3}
+      propertyPath: m_LocalScale.y
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 1d2d91e6cec5ee045bca190f9aecb5ba,
+        type: 3}
+      propertyPath: m_LocalScale.z
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 1d2d91e6cec5ee045bca190f9aecb5ba,
+        type: 3}
       propertyPath: m_LocalPosition.x
       value: 0
       objectReference: {fileID: 0}
@@ -726,6 +740,11 @@ PrefabInstance:
         type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 1d2d91e6cec5ee045bca190f9aecb5ba,
+        type: 3}
+      propertyPath: m_ConstrainProportionsScale
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 853342122966069204, guid: 1d2d91e6cec5ee045bca190f9aecb5ba,
         type: 3}
