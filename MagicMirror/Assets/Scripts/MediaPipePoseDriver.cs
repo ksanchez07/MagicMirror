@@ -3,6 +3,8 @@
 namespace Mediapipe.Unity.Sample.PoseLandmarkDetection
 {
     using Mediapipe.Tasks.Vision.PoseLandmarker;
+    using Mediapipe.Tasks.Vision.FaceLandmarker;
+    using Mediapipe.Unity.Sample.FaceLandmarkDetection;
     using Mediapipe.Tasks.Components.Containers;
 
     [RequireComponent(typeof(Animator))]
@@ -10,6 +12,7 @@ namespace Mediapipe.Unity.Sample.PoseLandmarkDetection
     {
         [Header("Connection")]
         public PoseLandmarkerRunner runner;
+        public FaceLandmarkerRunner faceRunner;
 
         [Header("Camera & Depth")]
         public Camera cam;
@@ -32,25 +35,32 @@ namespace Mediapipe.Unity.Sample.PoseLandmarkDetection
         [Range(0f, 1f)]
         public float visibilityThreshold = 0.5f;
 
-        private const int IDX_NOSE = 0;
+        // Pose indices
         private const int IDX_L_SHOULDER = 11;
         private const int IDX_R_SHOULDER = 12;
         private const int IDX_L_ELBOW = 13;
         private const int IDX_R_ELBOW = 14;
         private const int IDX_L_WRIST = 15;
         private const int IDX_R_WRIST = 16;
-        private const int IDX_L_HIP = 23;
-        private const int IDX_R_HIP = 24;
         private const int IDX_L_KNEE = 25;
         private const int IDX_R_KNEE = 26;
         private const int IDX_L_ANKLE = 27;
         private const int IDX_R_ANKLE = 28;
-        private const int IDX_L_EAR = 7;
-        private const int IDX_R_EAR = 8;
+
+        // Face indices
+        private const int IDX_FACE_NOSE = 1;
+        private const int IDX_FACE_L_TEMPLE = 234;
+        private const int IDX_FACE_R_TEMPLE = 454;
 
         private Animator _animator;
-        private PoseLandmarkerResult _latestResult;
-        private bool _hasNewResult;
+
+        private PoseLandmarkerResult _latestPoseResult;
+        private FaceLandmarkerResult _latestFaceResult;
+
+        private bool _hasNewPoseResult;
+        private bool _hasNewFaceResult;
+        private bool _hasFaceResult;
+
         private readonly object _lock = new object();
 
         private readonly Vector3[] _smoothed = new Vector3[33];
@@ -58,6 +68,10 @@ namespace Mediapipe.Unity.Sample.PoseLandmarkDetection
 
         private float _modelShoulderSpan = 1f;
         private float _shoulderToRootOffset;
+
+        // 🔥 Look-at tracking instead of direct head rotation
+        private Vector3 _lookTarget;
+        private bool _lookInitialized = false;
 
         void Awake()
         {
@@ -82,47 +96,73 @@ namespace Mediapipe.Unity.Sample.PoseLandmarkDetection
         {
             if (runner == null)
                 runner = FindObjectOfType<PoseLandmarkerRunner>();
+            runner.OnPoseLandmarkerOutput += OnPoseResult;
 
-            runner.OnPoseLandmarkerOutput += OnResult;
+            if (faceRunner == null)
+                faceRunner = FindObjectOfType<FaceLandmarkerRunner>();
+
+            if (faceRunner != null)
+                faceRunner.OnFaceLandmarkerOutput += OnFaceResult;
         }
 
         void OnDestroy()
         {
             if (runner != null)
-                runner.OnPoseLandmarkerOutput -= OnResult;
+                runner.OnPoseLandmarkerOutput -= OnPoseResult;
+
+            if (faceRunner != null)
+                faceRunner.OnFaceLandmarkerOutput -= OnFaceResult;
         }
 
-        private void OnResult(PoseLandmarkerResult result)
+        private void OnPoseResult(PoseLandmarkerResult result)
         {
             lock (_lock)
             {
-                _latestResult = result;
-                _hasNewResult = true;
+                _latestPoseResult = result;
+                _hasNewPoseResult = true;
+            }
+        }
+
+        private void OnFaceResult(FaceLandmarkerResult result)
+        {
+            lock (_lock)
+            {
+                _latestFaceResult = result;
+                _hasNewFaceResult = true;
+                _hasFaceResult = true;
             }
         }
 
         void LateUpdate()
         {
-            PoseLandmarkerResult result;
-            bool hasNew;
+            PoseLandmarkerResult poseResult;
+            FaceLandmarkerResult faceResult;
+            bool hasNewPose, hasNewFace, hasFace;
 
             lock (_lock)
             {
-                result = _latestResult;
-                hasNew = _hasNewResult;
-                _hasNewResult = false;
+                poseResult = _latestPoseResult;
+                faceResult = _latestFaceResult;
+                hasNewPose = _hasNewPoseResult;
+                hasNewFace = _hasNewFaceResult;
+                hasFace = _hasFaceResult;
+
+                _hasNewPoseResult = false;
+                _hasNewFaceResult = false;
             }
 
-            if (!hasNew) return;
-            if (result.poseLandmarks == null || result.poseLandmarks.Count == 0) return;
+            if (!hasNewPose || poseResult.poseLandmarks == null || poseResult.poseLandmarks.Count == 0)
+                return;
 
-            var landmarks = result.poseLandmarks[0];
+            var landmarks = poseResult.poseLandmarks[0];
             if (landmarks.landmarks == null) return;
 
             Smooth(landmarks);
             ApplyBodyScale();
             DriveSpine();
-            DriveHead(transform.rotation, transform.forward);
+
+            if (hasFace && faceResult.faceLandmarks != null && faceResult.faceLandmarks.Count > 0)
+                UpdateLookTarget(faceResult.faceLandmarks[0]);
         }
 
         void OnAnimatorIK(int layerIndex)
@@ -131,13 +171,14 @@ namespace Mediapipe.Unity.Sample.PoseLandmarkDetection
             HandIK(AvatarIKGoal.RightHand, AvatarIKHint.RightElbow, IDX_R_WRIST, IDX_R_ELBOW);
             FootIK(AvatarIKGoal.LeftFoot, AvatarIKHint.LeftKnee, IDX_L_ANKLE, IDX_L_KNEE);
             FootIK(AvatarIKGoal.RightFoot, AvatarIKHint.RightKnee, IDX_R_ANKLE, IDX_R_KNEE);
+
+            ApplyLookAt(); // 🔥 KEY FIX
         }
 
         private Vector3 ToWorld(NormalizedLandmark lm)
         {
             float sx = lm.x * cam.pixelWidth;
             float sy = (1f - lm.y) * cam.pixelHeight;
-
             return cam.ScreenToWorldPoint(new Vector3(sx, sy, characterDepth)) + worldOffset;
         }
 
@@ -159,11 +200,9 @@ namespace Mediapipe.Unity.Sample.PoseLandmarkDetection
         {
             if (!_visible[IDX_L_SHOULDER] || !_visible[IDX_R_SHOULDER]) return;
 
-            float observedSpan = Vector3.Distance(
-                _smoothed[IDX_L_SHOULDER],
-                _smoothed[IDX_R_SHOULDER]);
-
+            float observedSpan = Vector3.Distance(_smoothed[IDX_L_SHOULDER], _smoothed[IDX_R_SHOULDER]);
             float s = (observedSpan / _modelShoulderSpan) * scaleMultiplier;
+
             transform.localScale = Vector3.one * s;
         }
 
@@ -171,58 +210,50 @@ namespace Mediapipe.Unity.Sample.PoseLandmarkDetection
         {
             if (!_visible[IDX_L_SHOULDER] || !_visible[IDX_R_SHOULDER]) return;
 
-            var lShoulder = _smoothed[IDX_L_SHOULDER];
-            var rShoulder = _smoothed[IDX_R_SHOULDER];
-
-            // Use shoulders because they are visible more often than hips
-            var shoulderCenter = (lShoulder + rShoulder) * 0.5f;
-
-            // Move character down from shoulders to where hips/root should be
-            transform.position = shoulderCenter + new Vector3(0f, _shoulderToRootOffset, 0f);
+            var center = (_smoothed[IDX_L_SHOULDER] + _smoothed[IDX_R_SHOULDER]) * 0.5f;
+            transform.position = center + new Vector3(0f, _shoulderToRootOffset, 0f);
         }
 
-        private void DriveHead(Quaternion baseRot, Vector3 forward)
+        private void UpdateLookTarget(NormalizedLandmarks faceLandmarks)
         {
-            if (!_visible[IDX_NOSE] || !_visible[IDX_L_EAR] || !_visible[IDX_R_EAR] ||
-                !_visible[IDX_L_SHOULDER] || !_visible[IDX_R_SHOULDER]) return;
+            var lms = faceLandmarks.landmarks;
+            if (lms == null || lms.Count <= IDX_FACE_R_TEMPLE) return;
 
-            var head = _animator.GetBoneTransform(HumanBodyBones.Head);
-            if (head == null) return;
+            Vector3 left = ToWorld(lms[IDX_FACE_L_TEMPLE]);
+            Vector3 right = ToWorld(lms[IDX_FACE_R_TEMPLE]);
+            Vector3 nose = ToWorld(lms[IDX_FACE_NOSE]);
 
-            Vector3 nose = _smoothed[IDX_NOSE];
-            Vector3 leftEar = _smoothed[IDX_L_EAR];
-            Vector3 rightEar = _smoothed[IDX_R_EAR];
+            Vector3 faceRight = (right - left).normalized;
+            if (faceRight.sqrMagnitude < 0.001f) return;
 
-            Vector3 earCenter = (leftEar + rightEar) * 0.5f;
-            Vector3 headRight = (rightEar - leftEar).normalized;
-            Vector3 headForward = (nose - earCenter).normalized;
+            Vector3 faceForward = Vector3.Cross(faceRight, Vector3.up).normalized;
 
-            if (headForward.sqrMagnitude < 0.001f)
-                return;
+            Vector3 center = (left + right) * 0.5f;
+            Vector3 noseOffset = (nose - center) * 0.5f;
 
-            Vector3 headUp = Vector3.Cross(headForward, headRight).normalized;
+            Vector3 finalForward = (faceForward + noseOffset).normalized;
 
-            if (headUp.sqrMagnitude < 0.001f)
-                headUp = Vector3.up;
+            _lookTarget = center + finalForward * 10f;
+            _lookInitialized = true;
+        }
 
-            Quaternion targetRot = Quaternion.LookRotation(headForward, headUp);
+        private void ApplyLookAt()
+        {
+            if (!_lookInitialized) return;
 
-            // Smooth movement so it does not twitch
-            head.rotation = Quaternion.Slerp(head.rotation, targetRot, 0.25f);
+            _animator.SetLookAtWeight(1.0f, 0.0f, 0.9f, 1.0f, 0.3f);
+            _animator.SetLookAtPosition(_lookTarget);
         }
 
         private void HandIK(AvatarIKGoal goal, AvatarIKHint hint, int endIdx, int hintIdx)
         {
             float w = _visible[endIdx] ? handIKWeight : 0f;
-
             _animator.SetIKPositionWeight(goal, w);
-            _animator.SetIKRotationWeight(goal, 0f); 
 
             if (_visible[endIdx])
                 _animator.SetIKPosition(goal, _smoothed[endIdx]);
 
             float hw = _visible[hintIdx] ? hintIKWeight : 0f;
-
             _animator.SetIKHintPositionWeight(hint, hw);
 
             if (_visible[hintIdx])
@@ -232,15 +263,12 @@ namespace Mediapipe.Unity.Sample.PoseLandmarkDetection
         private void FootIK(AvatarIKGoal goal, AvatarIKHint hint, int endIdx, int hintIdx)
         {
             float w = _visible[endIdx] ? footIKWeight : 0f;
-
             _animator.SetIKPositionWeight(goal, w);
-            _animator.SetIKRotationWeight(goal, 0f);
 
             if (_visible[endIdx])
                 _animator.SetIKPosition(goal, _smoothed[endIdx]);
 
             float hw = _visible[hintIdx] ? hintIKWeight : 0f;
-
             _animator.SetIKHintPositionWeight(hint, hw);
 
             if (_visible[hintIdx])
