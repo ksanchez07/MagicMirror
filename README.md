@@ -107,7 +107,7 @@ On startup the script measures the character model's shoulder span in local spac
 
 ---
 
-## Runtime Controls — 
+## Runtime Controls
 
 Assign your character prefabs and background options in the characters array on the View Controller component. Each element will be activated when the corresponding number is pressed. By default, the assignments are:
 
