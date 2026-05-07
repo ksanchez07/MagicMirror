@@ -39,13 +39,13 @@ A real-time augmented reality Unity application that uses MediaPipe pose detecti
 
 ```
 Assets/
-├── MediaPipe/           # Contains MediaPipe plugin including their sample scenes and tutorial
+├── MediaPipe/           # Contains MediaPipe plugin, including their sample scenes and tutorial
 ├── Rigged Bodies/          # FBX character models (.fbx)
 ├── backgrounds/         # Background textures or scene objects
 ├── Scripts/
 │   ├── MediaPipePoseDriver.cs        # Core: drives character bones from pose landmarks
 │   └── CharacterBackgroundSwapper.cs # Runtime character and background switching
-├── Scenes/              # A few scence we were testing with. Not used for project
+├── Scenes/              # A few scenes we were testing with. Not used for the project
 └── PoseDriverController.controller   # Animation Controller
 ```
 
